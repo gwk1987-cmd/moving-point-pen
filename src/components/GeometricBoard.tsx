@@ -1,15 +1,9 @@
 "use client";
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import '../app/jsxgraph.css';
 import 'katex/dist/katex.min.css';
 import katex from 'katex';
-
-// 强制在浏览器环境导入
-let JXG: any;
-if (typeof window !== 'undefined') {
-  JXG = require('jsxgraph');
-}
 
 export interface Point {
   name: string;
@@ -19,7 +13,7 @@ export interface Point {
 
 export interface MovingPointConfig {
   name: string;
-  path: string[]; // e.g., ["A", "B", "C"]
+  path: string[];
   speed: number;
 }
 
@@ -28,8 +22,8 @@ interface GeometricBoardProps {
   movingPoints: MovingPointConfig[];
   extraElements?: (board: any, elements: any) => void;
   onBoardInit?: (board: any, elements: any) => void;
-  transparent?: boolean; // 新增：透明背景开关
-  showWatermark?: boolean; // 新增：水印开关
+  transparent?: boolean;
+  showWatermark?: boolean;
 }
 
 const GeometricBoard: React.FC<GeometricBoardProps> = ({ 
@@ -41,22 +35,34 @@ const GeometricBoard: React.FC<GeometricBoardProps> = ({
   showWatermark = false
 }) => {
   const boardRef = useRef<HTMLDivElement>(null);
-  const id = "jxgbox-" + Math.random().toString(36).substr(2, 9);
+  const [boardId] = useState(() => "jxgbox-" + Math.random().toString(36).substring(2, 11));
+  const boardInstanceRef = useRef<any>(null);
 
   useEffect(() => {
+    // 关键修复：确保代码仅在浏览器端执行
     if (typeof window === 'undefined' || !boardRef.current) return;
 
-    // 初始化坐标系
-    const board = JXG.JSXGraph.initBoard(id, {
+    // 解决 Next.js 中 JSXGraph 的导入与全局变量问题
+    const JXG = require('jsxgraph');
+    if (!JXG) return;
+    
+    // 强制挂载到全局，防止库内部引用报错
+    if (typeof window !== 'undefined') {
+      (window as any).JXG = JXG;
+    }
+    
+    // 初始化看板
+    const board = JXG.JSXGraph.initBoard(boardId, {
       boundingbox: [-2, 8, 10, -2],
       axis: true,
-      grid: !transparent, // 透明模式下通常关闭网格以方便嵌入
+      grid: !transparent,
       showCopyright: false,
       keepaspectratio: true,
       fillColor: transparent ? 'none' : '#ffffff',
     });
 
-    // 如果是透明模式，强制设置容器和 canvas 背景
+    boardInstanceRef.current = board;
+
     if (transparent && board.containerObj) {
       board.containerObj.style.background = 'transparent';
     }
@@ -68,13 +74,9 @@ const GeometricBoard: React.FC<GeometricBoardProps> = ({
         fontSize: 16,
         color: '#aaaaaa',
         opacity: 0.3,
-        cssClass: 'watermark-text',
-        layer: 9 // 确保在顶层
+        layer: 9
       });
     }
-
-    // 启用 KaTeX 解析
-    board.jc.parse = (expr: string) => expr; // Placeholder for JSXGraph logic
 
     const elements: any = {
       points: {},
@@ -125,20 +127,18 @@ const GeometricBoard: React.FC<GeometricBoardProps> = ({
       elements.movingPoints.push(p);
     });
 
-    // 3. 运行额外的几何描述（如三角形面积等）
+    // 3. 运行额外的几何描述
     if (extraElements) {
       extraElements(board, elements);
     }
 
     // 4. 定时检查并渲染 KaTeX 文本
-    // 因为 JSXGraph 动态更新文本，我们需要一个钩子来处理
     const renderKaTeX = () => {
       const texts = document.querySelectorAll('.katex-text');
       texts.forEach(el => {
         const latex = el.getAttribute('data-latex');
         if (latex) {
           try {
-            // 每次更新都重新渲染以支持动态数值
             katex.render(latex, el as HTMLElement, { throwOnError: false, displayMode: false });
           } catch (e) {
             console.error(e);
@@ -148,25 +148,22 @@ const GeometricBoard: React.FC<GeometricBoardProps> = ({
     };
 
     board.on('update', renderKaTeX);
-    setTimeout(renderKaTeX, 100); // 初始渲染
+    setTimeout(renderKaTeX, 100);
 
     if (onBoardInit) {
       onBoardInit(board, elements);
     }
 
     return () => {
-      JXG.JSXGraph.freeBoard(board);
+      if (JXG && JXG.JSXGraph) {
+        JXG.JSXGraph.freeBoard(board);
+      }
     };
-  }, [points, movingPoints, extraElements]);
+  }, [points, movingPoints, extraElements, boardId, onBoardInit, showWatermark, transparent]);
 
   return (
-    <div className="w-full h-[500px] relative">
-      <div id={id} ref={boardRef} className="jxgbox" />
-      <style jsx global>{`
-        .jxgbox .jxgtext {
-          font-family: 'Times New Roman', Times, serif !important;
-        }
-      `}</style>
+    <div className="w-full h-full relative min-h-[500px]">
+      <div id={boardId} ref={boardRef} className="jxgbox w-full h-full" />
     </div>
   );
 };
