@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>动点神笔 MVP-1 Demo</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraph.css" />
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraphcore.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        #jxgbox { width: 600px; height: 400px; border: 1px solid #ccc; border-radius: 8px; }
+        .controls { margin-top: 20px; }
+        button { padding: 10px 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>动点神笔 - MVP-1 核心引擎验证</h1>
+    <div id="jxgbox" class="jxgbox"></div>
+    <div class="controls">
+        <button onclick="startAnimation()">开始演示：点 P 在矩形边上运动</button>
+        <button onclick="resetAnimation()">重置</button>
+    </div>
+
+    <script>
+        // 1. 初始化画布
+        const board = JXG.JSXGraph.initBoard('jxgbox', {
+            boundingbox: [-1, 5, 7, -1], 
+            axis: true,
+            showCopyright: false,
+            keepaspectratio: true
+        });
+
+        // 2. 定义定点 (矩形 ABCD)
+        const A = board.create('point', [0, 0], {name: 'A', fixed: true, color: 'blue'});
+        const B = board.create('point', [5, 0], {name: 'B', fixed: true, color: 'blue'});
+        const C = board.create('point', [5, 3], {name: 'C', fixed: true, color: 'blue'});
+        const D = board.create('point', [0, 3], {name: 'D', fixed: true, color: 'blue'});
+
+        // 3. 创建多边形路径
+        const poly = board.create('polygon', [A, B, C, D], {
+            fillColor: '#ffff00', 
+            fillOpacity: 0.1,
+            borders: { strokeColor: 'black', strokeWidth: 2 }
+        });
+
+        // 4. 创建动点 P (约束在多边形的边界线上)
+        // 路径为 A->B->C->D->A
+        const p = board.create('glider', [0, 0, poly.border[0]], {
+            name: 'P', 
+            color: 'red', 
+            size: 4
+        });
+
+        // 5. 实时面积计算验证 (三角形 ADP)
+        const tri = board.create('polygon', [A, D, p], {
+            fillColor: 'red', 
+            fillOpacity: 0.2,
+            borders: { strokeColor: 'red', dash: 2 }
+        });
+        
+        const areaText = board.create('text', [0.5, 4, function() {
+            return '△ADP 面积 = ' + tri.Area().toFixed(2);
+        }], {fontSize: 16});
+
+        function startAnimation() {
+            // 设置动画逻辑：沿路径运动
+            // JSXGraph 的 glider 默认在整条链路上运动
+            p.startAnimation(1, 20); 
+        }
+
+        function resetAnimation() {
+            p.stopAnimation();
+            p.moveTo([0, 0]);
+        }
+    </script>
+</body>
+</html>
